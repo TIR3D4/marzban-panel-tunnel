@@ -13,6 +13,7 @@ import socket
 import subprocess
 import time
 import urllib.request
+import urllib.error
 
 from . import config
 from .system import ROOT, ETC, binary, install_runtime, run, write
@@ -83,7 +84,6 @@ def upstream_check(address):
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self, *args, **kwargs):
             return None
-    import urllib.error
     try:
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
         with opener.open('http://' + address + '/dashboard/', timeout=10) as reply:

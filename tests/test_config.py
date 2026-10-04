@@ -1,11 +1,13 @@
 """Configuration contract tests, including rejection of injected user inputs."""
 import base64
 import json
+import http.server
+import threading
 import unittest
 import tomllib
 
 from panel_tunnel import config
-from panel_tunnel.installer import bundle, unbundle
+from panel_tunnel.installer import bundle, unbundle, upstream_check
 
 KEY = base64.b64encode(b'k' * 32).decode()
 TOKEN = 'a' * 64
@@ -54,6 +56,27 @@ class ConfigurationTests(unittest.TestCase):
         self.assertIn('location / { return 404; }', text)
         self.assertIn('proxy_set_header X-Forwarded-Proto https;', text)
         self.assertNotIn('location /sub', text)
+
+    def test_local_upstream_and_redirect_detection(self):
+        class Handler(http.server.BaseHTTPRequestHandler):
+            response = 200
+            def do_GET(self):
+                self.send_response(self.response)
+                if self.response == 302:
+                    self.send_header('Location', 'https://example.com/dashboard/')
+                self.end_headers()
+            def log_message(self, *args):
+                pass
+        server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            upstream_check(f'127.0.0.1:{server.server_port}')
+            Handler.response = 302
+            with self.assertRaises(ValueError):
+                upstream_check(f'127.0.0.1:{server.server_port}')
+        finally:
+            server.shutdown()
+            server.server_close()
 
     def test_ports_keys_tokens(self):
         for bad in (0, 443, 65536):

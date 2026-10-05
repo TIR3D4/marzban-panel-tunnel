@@ -66,6 +66,7 @@ class ConfigurationTests(unittest.TestCase):
         text = config.nginx(self.iran())
         self.assertIn('location / { return 404; }', text)
         self.assertIn('proxy_set_header X-Forwarded-Proto https;', text)
+        self.assertIn('location ^~ /statics/', text)
         self.assertNotIn('location /sub', text)
 
     def test_local_upstream_and_redirect_detection(self):

@@ -104,6 +104,14 @@ http {{
         ssl_protocols TLSv1.2 TLSv1.3;
         location = / {{ return 302 /dashboard/; }}
         location = /dashboard {{ return 302 /dashboard/; }}
+        location ^~ /statics/ {{
+            proxy_pass http://127.0.0.1:{c['local_port']};
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Forwarded-Proto https;
+            proxy_set_header X-Forwarded-For $remote_addr;
+            proxy_read_timeout 300s;
+        }}
         location ~ ^/(dashboard/|api(?:/|$)) {{
             proxy_pass http://127.0.0.1:{c['local_port']};
             proxy_http_version 1.1;

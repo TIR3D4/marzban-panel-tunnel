@@ -21,6 +21,8 @@ def settings():
 def doctor(c):
     failures = []
     names = ['marzban-panel-tunnel'] + (['marzban-panel-nginx'] if c['role'] == 'iran' else [])
+    if c['role'] == 'foreign' and c.get('upstream_protocol') == 'https':
+        names.append('marzban-panel-tls-bridge')
     for name in names:
         result = subprocess.run(['systemctl', 'is-active', '--quiet', name])
         print(f'{name}: {"active" if result.returncode == 0 else "FAILED"}')
@@ -52,7 +54,7 @@ def uninstall():
     print('Stops/removes only project units and the command. Config, binary, certificates and packages are retained.')
     if input('Type REMOVE to continue: ').strip() != 'REMOVE':
         return
-    for name in ['marzban-panel-tunnel', 'marzban-panel-nginx']:
+    for name in ['marzban-panel-tunnel', 'marzban-panel-nginx', 'marzban-panel-tls-bridge']:
         unit = UNITS / (name + '.service')
         if unit.exists():
             run('systemctl', 'disable', '--now', name)
@@ -98,9 +100,12 @@ def main():
                 print(bundle(c))
             elif args.command == 'status':
                 names = ['marzban-panel-tunnel'] + (['marzban-panel-nginx'] if c['role'] == 'iran' else [])
+                if c['role'] == 'foreign' and c.get('upstream_protocol') == 'https':
+                    names.append('marzban-panel-tls-bridge')
                 return subprocess.run(['systemctl', 'status', '--no-pager', *names]).returncode
             elif args.command == 'logs':
-                run('journalctl', '-u', 'marzban-panel-tunnel', '-u', 'marzban-panel-nginx', '-n', '100', '--no-pager')
+                run('journalctl', '-u', 'marzban-panel-tunnel', '-u', 'marzban-panel-nginx',
+                    '-u', 'marzban-panel-tls-bridge', '-n', '100', '--no-pager')
             elif args.command == 'renew-test':
                 if c['role'] != 'iran':
                     raise ValueError('Run on the Iran gateway.')

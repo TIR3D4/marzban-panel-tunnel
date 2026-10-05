@@ -23,6 +23,8 @@ sudo tail -n 50 /var/log/marzban-panel-tunnel/nginx-error.log
 | نصب ایران: port unavailable | listener با `sudo ss -lntp`؛ پروژه روی پورت وب‌سرور فعلی نصب نمی‌شود |
 | دریافت گواهی شکست می‌خورد | DNS A، نبود AAAA اشتباه، DNS only، TCP/80 و فایروال ارائه‌دهنده |
 | curl محلی خارج پاسخ نمی‌دهد | پورت HTTP مرزبان، Docker host binding و فعال بودن TLS |
+| گواهی HTTPS محلی رد می‌شود | مقدار `upstream_tls_name` باید دقیقاً یکی از نام‌های SAN گواهی مرزبان باشد؛ زنجیره گواهی نیز باید معتبر باشد |
+| سرویس TLS bridge خطا دارد | `sudo panel-tunnel logs` و دسترسی محلی به پورت HTTPS مرزبان را بررسی کنید |
 | خارج به ایران وصل نمی‌شود | مسیر خروجی خارج، listener ایران، پورت و whitelist IP در فایروال |
 | لاگ Noise/authentication خطا دارد | pairing code از همین نصب ایران و کلید/token بدون تغییر باشد |
 | ایران 502/timeout می‌دهد | client خارج روشن باشد؛ upstream خارج HTTP 200 بدهد |

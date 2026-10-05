@@ -2,7 +2,7 @@
 
 ## مسیر درخواست
 
-HTTPS مرورگر روی سرور ایران توسط Nginx باز می‌شود. Nginx مسیر پنل/API را به `127.0.0.1:18000` می‌دهد. Rathole ایران این درخواست را از اتصال Noise به Rathole خارج می‌فرستد. کلاینت خارج به `127.0.0.1:8000` روی host خودش متصل می‌شود و پاسخ در همان مسیر برمی‌گردد.
+HTTPS مرورگر روی سرور ایران توسط Nginx باز می‌شود. Nginx مسیر پنل/API را به `127.0.0.1:18000` می‌دهد. Rathole ایران این درخواست را از اتصال Noise به Rathole خارج می‌فرستد. کلاینت خارج به endpoint روی host خودش متصل می‌شود و پاسخ در همان مسیر برمی‌گردد. برای backend نوع HTTPS، Rathole به یک پل loopback متصل می‌شود؛ پل با CA سیستم و SNI/hostname تعیین‌شده TLS را برقرار می‌کند.
 
 سرور ایران listener تونل را باز می‌کند؛ سرور خارج شروع‌کننده اتصال است. Noise ترافیک ایران↔خارج را رمزگذاری می‌کند و کلاینت کلید عمومی ایران را pin می‌کند. token مستقل به سرویس `panel` اجازه اتصال می‌دهد. مرورگر با گواهی معتبر HTTPS به ایران وصل می‌شود.
 
@@ -14,6 +14,7 @@ HTTPS مرورگر روی سرور ایران توسط Nginx باز می‌شو�
 | `/opt/marzban-panel-tunnel/app/` | کد Python مدیریت |
 | `/etc/marzban-panel-tunnel/settings.json` | state و کلیدهای نصب؛ root، حالت 600 |
 | `/etc/marzban-panel-tunnel/rathole.toml` | config سرویس؛ root:marzban-panel-tunnel، حالت 640 |
+| `/etc/marzban-panel-tunnel/tls-bridge.json` | مقصد و hostname TLS، فقط برای backend نوع HTTPS |
 | `/etc/marzban-panel-tunnel/acme-bootstrap.conf` | config موقت HTTP برای صدور اولیه گواهی |
 | `/etc/marzban-panel-tunnel/nginx.conf` | config مستقل HTTPS در ایران |
 | `/etc/systemd/system/marzban-panel-tunnel.service` | سرویس Rathole با کاربر اختصاصی بدون shell |
@@ -33,7 +34,10 @@ HTTPS مرورگر روی سرور ایران توسط Nginx باز می‌شو�
 | `domain` | دامنه ورودی دوم پنل، پیش‌فرض `panel-ir.hamrahgate.ir` |
 | `port` | TCP تونل عمومی، پیش‌فرض 2333؛ هر دو طرف یکسان |
 | `local_port` | سوکت خصوصی ایران، پیش‌فرض 18000 |
-| `upstream` | endpoint HTTP روی host خارج؛ پیش‌فرض `127.0.0.1:8000` |
+| `upstream_protocol` | `http` یا `https` |
+| `upstream` | endpoint روی host خارج؛ مثل `127.0.0.1:8000` یا `127.0.0.1:443` |
+| `upstream_tls_name` | نام DNS داخل گواهی backend، فقط HTTPS |
+| `bridge_addr` | پل loopback برای HTTPS؛ پیش‌فرض `127.0.0.1:18443` |
 | `token` | 32 بایت تصادفی به شکل 64 کاراکتر hex؛ محرمانه |
 | `private_key` | کلید خصوصی Noise؛ فقط ایران |
 | `public_key` | کلید عمومی ایران برای pin در خارج |

@@ -10,6 +10,7 @@ import re
 import secrets
 import shutil
 import socket
+import ssl
 import subprocess
 import time
 import urllib.request
@@ -79,18 +80,36 @@ def unbundle(value):
         raise ValueError('Invalid pairing code; copy it again from the Iran server.') from error
 
 
-def upstream_check(address):
+def upstream_check(c):
     # No redirect following: a configured redirect can hide an inaccessible upstream.
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self, *args, **kwargs):
             return None
+    address = c['upstream']
     try:
-        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
-        with opener.open('http://' + address + '/dashboard/', timeout=10) as reply:
-            if reply.status != 200:
-                raise ValueError('Dashboard did not return HTTP 200.')
-    except (urllib.error.URLError, OSError) as error:
-        raise ValueError(f'Cannot read the local HTTP dashboard at {address}. Check Marzban port and HTTP/TLS mode.') from error
+        if c['upstream_protocol'] == 'http':
+            opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+            with opener.open('http://' + address + '/dashboard/', timeout=10) as reply:
+                status = reply.status
+        else:
+            host_name = config.host(c['upstream_tls_name'])
+            raw = socket.create_connection(tuple_address(address), timeout=10)
+            with ssl.create_default_context().wrap_socket(raw, server_hostname=host_name) as secured:
+                request = (f'GET /dashboard/ HTTP/1.1\r\nHost: {c["domain"]}\r\n'
+                           'Connection: close\r\nUser-Agent: marzban-panel-tunnel/1.1\r\n\r\n')
+                secured.sendall(request.encode('ascii'))
+                first_line = secured.makefile('rb').readline(4096).decode('latin-1').strip()
+                match = re.fullmatch(r'HTTP/\d(?:\.\d)? (\d{3})(?: .*)?', first_line)
+                status = int(match.group(1)) if match else 0
+        if status != 200:
+            raise ValueError(f'Dashboard returned HTTP {status}, expected 200.')
+    except (ssl.SSLError, urllib.error.URLError, OSError) as error:
+        raise ValueError(f'Cannot securely read the local {c["upstream_protocol"].upper()} dashboard at {address}: {error}') from error
+
+
+def tuple_address(address):
+    host_name, port_number = address.rsplit(':', 1)
+    return host_name, int(port_number)
 
 
 def gather(role):
@@ -121,8 +140,12 @@ def gather(role):
         c['private_key'], c['public_key'] = map(config.key, keys)
     else:
         c.update(ask('Pairing code from Iran (hidden)', validator=unbundle, secret=True))
-        c['upstream'] = ask('Local Marzban HTTP endpoint', '127.0.0.1:8000', config.upstream)
-        upstream_check(c['upstream'])
+        c.update(ask('Local Marzban endpoint URL', 'http://127.0.0.1:8000', config.upstream_url))
+        if c['upstream_protocol'] == 'https':
+            c['upstream_tls_name'] = ask('Hostname listed in the Marzban TLS certificate', validator=config.host)
+            c['bridge_addr'] = '127.0.0.1:18443'
+            free_port(18443)
+        upstream_check(c)
         with socket.create_connection((c['iran_host'], c['port']), timeout=10):
             pass
     return c
@@ -147,7 +170,7 @@ def apply(c):
     write(ETC / 'rathole.toml', config.rathole(c), 0o640)
     os.chown(ETC / 'rathole.toml', 0, group)
     install_runtime(SOURCE)
-    write(UNITS / 'marzban-panel-tunnel.service', config.tunnel_unit(), 0o644)
+    write(UNITS / 'marzban-panel-tunnel.service', config.tunnel_unit(c), 0o644)
     if c['role'] == 'iran':
         had_nginx = shutil.which('nginx') is not None or Path('/usr/sbin/nginx').exists()
         run('apt-get', 'update')
@@ -180,7 +203,15 @@ def apply(c):
         write(UNITS / 'marzban-panel-nginx.service', config.nginx_unit(), 0o644)
         write('/etc/letsencrypt/renewal-hooks/deploy/marzban-panel-tunnel',
               '#!/bin/sh\nif systemctl is-active --quiet marzban-panel-nginx; then systemctl reload marzban-panel-nginx; fi\n', 0o755)
+    if c['role'] == 'foreign' and c.get('upstream_protocol') == 'https':
+        bridge_settings = {name: c[name] for name in ('upstream', 'upstream_tls_name', 'bridge_addr')}
+        write(ETC / 'tls-bridge.json', json.dumps(bridge_settings, indent=2), 0o640)
+        os.chown(ETC / 'tls-bridge.json', 0, group)
+        write(UNITS / 'marzban-panel-tls-bridge.service', config.tls_bridge_unit(), 0o644)
     run('systemctl', 'daemon-reload')
+    if c['role'] == 'foreign' and c.get('upstream_protocol') == 'https':
+        run('systemctl', 'enable', 'marzban-panel-tls-bridge')
+        run('systemctl', 'restart', 'marzban-panel-tls-bridge')
     run('systemctl', 'enable', 'marzban-panel-tunnel')
     run('systemctl', 'restart', 'marzban-panel-tunnel')
     if c['role'] == 'iran':

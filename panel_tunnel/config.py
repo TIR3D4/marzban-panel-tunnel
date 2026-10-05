@@ -35,12 +35,18 @@ def token(value):
 
 
 def upstream(value):
-    # Restrict the first release to a local plain-HTTP endpoint; never skip TLS checks.
     if not re.fullmatch(r'127\.0\.0\.1:[0-9]{1,5}', value):
         raise ValueError('Upstream must be 127.0.0.1:PORT, e.g. 127.0.0.1:8000.')
     if not 1 <= int(value.rsplit(':', 1)[1]) <= 65535:
         raise ValueError('Invalid upstream port.')
     return value
+
+
+def upstream_url(value):
+    match = re.fullmatch(r'(http|https)://(127\.0\.0\.1:[0-9]{1,5})', value.lower())
+    if not match:
+        raise ValueError('Use http://127.0.0.1:PORT or https://127.0.0.1:PORT.')
+    return {'upstream_protocol': match.group(1), 'upstream': upstream(match.group(2))}
 
 
 def rathole(c):
@@ -57,6 +63,7 @@ local_private_key = {q(key(c['private_key']))}
 token = {q(token(c['token']))}
 bind_addr = "127.0.0.1:{c['local_port']}"
 '''
+    local_addr = c['bridge_addr'] if c.get('upstream_protocol') == 'https' else c['upstream']
     return f'''[client]
 remote_addr = {q(host(c['iran_host']) + ':' + str(port(c['port'])))}
 [client.transport]
@@ -65,7 +72,7 @@ type = "noise"
 remote_public_key = {q(key(c['public_key']))}
 [client.services.panel]
 token = {q(token(c['token']))}
-local_addr = {q(upstream(c['upstream']))}
+local_addr = {q(upstream(local_addr))}
 '''
 
 
@@ -115,16 +122,40 @@ http {{
 '''
 
 
-def tunnel_unit():
-    return '''[Unit]
+def tunnel_unit(c=None):
+    bridge_dependency = ''
+    if c and c.get('upstream_protocol') == 'https':
+        bridge_dependency = 'Requires=marzban-panel-tls-bridge.service\nAfter=marzban-panel-tls-bridge.service\n'
+    return f'''[Unit]
 Description=Marzban panel encrypted reverse tunnel
 Wants=network-online.target
 After=network-online.target
+{bridge_dependency}StartLimitIntervalSec=0
 StartLimitIntervalSec=0
 [Service]
 User=marzban-panel-tunnel
 Group=marzban-panel-tunnel
 ExecStart=/opt/marzban-panel-tunnel/bin/rathole /etc/marzban-panel-tunnel/rathole.toml
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+[Install]
+WantedBy=multi-user.target
+'''
+
+
+def tls_bridge_unit():
+    return '''[Unit]
+Description=Verified TLS bridge for the local Marzban endpoint
+Wants=network-online.target
+After=network-online.target
+[Service]
+User=marzban-panel-tunnel
+Group=marzban-panel-tunnel
+ExecStart=/usr/bin/python3 /opt/marzban-panel-tunnel/app/panel_tunnel/tls_bridge.py /etc/marzban-panel-tunnel/tls-bridge.json
 Restart=always
 RestartSec=5
 NoNewPrivileges=true

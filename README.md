@@ -6,7 +6,7 @@
 
 ## شروع سریع
 
-**پیش‌نیازها:** یک سرور ایران و یک سرور خارج با Debian 12+ یا Ubuntu 22.04+، معماری `x86_64`، دسترسی root/sudo و اینترنت برای دانلود بسته‌ها. Python 3 و curl باید موجود باشند. سرور ایران باید پورت‌های 80 و 443 آزاد داشته باشد. در نسخه 1.0، مرزبان باید روی سرور خارج یک endpoint محلی **HTTP** مثل `127.0.0.1:8000` داشته باشد. نصب‌کننده وجود داشبورد روی آن را بررسی می‌کند.
+**پیش‌نیازها:** یک سرور ایران و یک سرور خارج با Debian 12+ یا Ubuntu 22.04+، معماری `x86_64`، دسترسی root/sudo و اینترنت برای دانلود بسته‌ها. Python 3 و curl باید موجود باشند. سرور ایران باید پورت‌های 80 و 443 آزاد داشته باشد. مرزبان می‌تواند endpoint محلی HTTP مثل `http://127.0.0.1:8000` یا HTTPS مثل `https://127.0.0.1:443` داشته باشد. نصب‌کننده وجود داشبورد و اعتبار گواهی TLS را بررسی می‌کند.
 
 اگر curl یا Python نصب نیست:
 
@@ -46,9 +46,7 @@ curl -fsSL --retry 2 https://raw.githubusercontent.com/TIR3D4/marzban-panel-tunn
 curl -fsSL --retry 2 https://raw.githubusercontent.com/TIR3D4/marzban-panel-tunnel/main/install.sh -o /root/marzban-panel-tunnel-install.sh && bash /root/marzban-panel-tunnel-install.sh foreign
 ```
 
-کد مرحله قبل و آدرس محلی HTTP مرزبان را وارد کنید. پیش‌فرض `127.0.0.1:8000` است. کد هنگام تایپ/چسباندن نمایش داده نمی‌شود. نصب‌کننده قبل از راه‌اندازی دسترسی به endpoint محلی و پورت تونل ایران را بررسی می‌کند.
-
-**اگر پورت مرزبان HTTPS است، این نسخه آن را به عنوان HTTP قبول نمی‌کند.** قبل از نصب، طبق [راهنمای نصب](docs/INSTALL.fa.md) endpoint مناسب را مشخص کنید؛ خاموش‌کردن TLS پنل اصلی یا تغییر Docker توسط این پروژه انجام نمی‌شود.
+کد مرحله قبل و URL محلی مرزبان را وارد کنید. پیش‌فرض `http://127.0.0.1:8000` است. برای HTTPS، مانند `https://127.0.0.1:443` وارد کنید؛ سپس نام موجود در گواهی، مانند `panel.hamransub.com`، پرسیده می‌شود. کد هنگام چسباندن نمایش داده نمی‌شود. نصب‌کننده قبل از راه‌اندازی endpoint محلی، گواهی و پورت تونل ایران را بررسی می‌کند.
 
 ### ۴. تست نهایی
 
@@ -106,6 +104,7 @@ curl -fsSL --retry 2 https://raw.githubusercontent.com/TIR3D4/marzban-panel-tunn
 | `panel_tunnel/config.py` | اعتبارسنجی ورودی، تولید TOML و config Nginx/systemd |
 | `panel_tunnel/system.py` | دانلود باینری با SHA-256 ثابت، نوشتن اتمیک فایل، عملیات سیستم |
 | `panel_tunnel/installer.py` | مراحل نصب، جفت‌کردن دو سرور، گواهی و سرویس‌ها |
+| `panel_tunnel/tls_bridge.py` | اتصال داخلی به endpoint محلی HTTPS با بررسی CA و hostname |
 | `panel_tunnel/cli.py` | وضعیت، بررسی اتصال، لاگ، آپدیت و حذف |
 | `tests/test_config.py` | تست قرارداد config و رد ورودی ناسالم |
 | `tests/integration_tunnel.py` | تست واقعی انتقال HTTP و رد کلید نامعتبر با باینری Rathole |
@@ -130,6 +129,6 @@ bash -n install.sh
 python3 tests/integration_tunnel.py /absolute/path/to/rathole
 ```
 
-باینری Linux x64 نسخه `0.5.0` ثابت است و آرشیو دانلودشده با SHA-256 ثابت کنترل می‌شود. پشتیبانی ARM، چند پنل، WebSocket transport و endpoint محلی HTTPS در نسخه 1.0 پیاده‌سازی نشده‌اند.
+باینری Linux x64 نسخه `0.5.0` ثابت است و آرشیو دانلودشده با SHA-256 ثابت کنترل می‌شود. پشتیبانی ARM، چند پنل و WebSocket transport در نسخه فعلی پیاده‌سازی نشده‌اند.
 
 منابع اصلی: [Rathole](https://github.com/rathole-org/rathole)، [Noise transport](https://github.com/rathole-org/rathole/blob/main/docs/transport.md)، [Certbot](https://eff-certbot.readthedocs.io/en/stable/using.html).

@@ -25,11 +25,19 @@ class ConfigurationTests(unittest.TestCase):
         self.assertEqual(c['transport']['noise']['local_private_key'], KEY)
 
     def test_foreign_server_is_pinned_and_upstream_local(self):
-        c = self.iran() | dict(role='foreign', upstream='127.0.0.1:8000')
+        c = self.iran() | dict(role='foreign', upstream_protocol='http', upstream='127.0.0.1:8000')
         result = tomllib.loads(config.rathole(c))['client']
         self.assertEqual(result['remote_addr'], '192.0.2.1:2333')
         self.assertEqual(result['transport']['noise']['remote_public_key'], KEY)
         self.assertEqual(result['services']['panel']['local_addr'], '127.0.0.1:8000')
+
+    def test_https_upstream_uses_verified_loopback_bridge(self):
+        c = self.iran() | dict(role='foreign', upstream_protocol='https', upstream='127.0.0.1:443',
+                               upstream_tls_name='panel.example.com', bridge_addr='127.0.0.1:18443')
+        result = tomllib.loads(config.rathole(c))['client']
+        self.assertEqual(result['services']['panel']['local_addr'], '127.0.0.1:18443')
+        self.assertIn('Requires=marzban-panel-tls-bridge.service', config.tunnel_unit(c))
+        self.assertIn('/etc/marzban-panel-tunnel/tls-bridge.json', config.tls_bridge_unit())
 
     def test_pairing_roundtrip_excludes_private_key(self):
         code = bundle(self.iran())
@@ -50,6 +58,9 @@ class ConfigurationTests(unittest.TestCase):
         for bad in ('192.0.2.1:8000', '127.0.0.1:65536', 'localhost:80', '127.0.0.1:80/path'):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 config.upstream(bad)
+        self.assertEqual(config.upstream_url('https://127.0.0.1:443')['upstream_protocol'], 'https')
+        with self.assertRaises(ValueError):
+            config.upstream_url('https://localhost:443')
 
     def test_no_subscription_route_and_forwarded_https(self):
         text = config.nginx(self.iran())
@@ -70,10 +81,11 @@ class ConfigurationTests(unittest.TestCase):
         server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
         threading.Thread(target=server.serve_forever, daemon=True).start()
         try:
-            upstream_check(f'127.0.0.1:{server.server_port}')
+            c = {'upstream_protocol': 'http', 'upstream': f'127.0.0.1:{server.server_port}'}
+            upstream_check(c)
             Handler.response = 302
             with self.assertRaises(ValueError):
-                upstream_check(f'127.0.0.1:{server.server_port}')
+                upstream_check(c)
         finally:
             server.shutdown()
             server.server_close()
